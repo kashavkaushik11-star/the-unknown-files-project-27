@@ -196,7 +196,21 @@ Do not write anything before or after the post.
 `;
 
 const story = await askGemini(storyPrompt, 0.9);
+let finalStory = story.trim();
 
+const requiredHashtags =
+  "#TheUnknownFiles #Project27 #CaseFile001 #viral #trending #reels";
+
+finalStory = finalStory
+  .replace(/#TheUnknownFiles/gi, "")
+  .replace(/#Project27/gi, "")
+  .replace(/#CaseFile001/gi, "")
+  .replace(/#viral/gi, "")
+  .replace(/#trending/gi, "")
+  .replace(/#reels/gi, "")
+  .trim();
+
+finalStory += "\n\n" + requiredHashtags;
 console.log("Story generated.");
 console.log("Story length:", story.length);
 
@@ -361,7 +375,7 @@ form.append(
   "project-27.jpg"
 );
 
-form.append("message", story);
+form.append("message", finalStory);
 form.append("published", "true");
 form.append("access_token", fbToken);
 

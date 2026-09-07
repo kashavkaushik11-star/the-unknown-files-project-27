@@ -3,10 +3,16 @@ name: Project 27 Auto Posting
 on:
   workflow_dispatch:
   schedule:
-    - cron: '45 6 * * *'
-    - cron: '15 9 * * *'
-    - cron: '45 11 * * *'
-    - cron: '15 14 * * *'
+    # India time (IST)
+    - cron: '15 12 * * *'
+      timezone: 'Asia/Kolkata'
+    - cron: '45 14 * * *'
+      timezone: 'Asia/Kolkata'
+    # Moved 5:15 PM to 5:17 PM to reduce GitHub scheduler congestion.
+    - cron: '17 17 * * *'
+      timezone: 'Asia/Kolkata'
+    - cron: '45 19 * * *'
+      timezone: 'Asia/Kolkata'
 
 jobs:
   post:

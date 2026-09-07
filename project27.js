@@ -13,11 +13,19 @@ if (!geminiKey || !cfToken || !cfAccount || !fbToken || !pageId) {
 // ========================================
 
 function getSlot() {
-  const hour = new Date().getUTCHours();
+  const now = new Date();
+  const istHour = Number(
+    new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      hour12: false
+    }).format(now)
+  );
 
-  if (hour === 5) return "morning";
-  if (hour === 8) return "afternoon";
-  return "evening";
+  if (istHour < 14) return "lunch";
+  if (istHour < 17) return "afternoon";
+  if (istHour < 19) return "evening";
+  return "night";
 }
 
 const slot = getSlot();
@@ -135,6 +143,7 @@ async function askGemini(prompt, temperature = 0.8) {
 
   throw new Error("Gemini failed after all retry attempts.");
 }
+
 // ========================================
 // 1. CREATE STORY
 // ========================================
@@ -151,8 +160,13 @@ CURRENT POST SLOT: ${slot}
 
 Create ONE fresh Facebook mystery post in simple Hindi/Hinglish.
 
-STORY REQUIREMENTS:
+SLOT STYLE:
+- lunch: evidence/clue discovery that hooks readers quickly
+- afternoon: strange person, CCTV-like event, object or unexplained incident
+- evening: important Project 27 case development with stronger suspense
+- night: strongest cliffhanger, hidden clue and theory-provoking ending
 
+STORY REQUIREMENTS:
 - Continue the Project 27 storyline.
 - Make the post understandable by itself.
 - Dark cinematic investigation atmosphere.
@@ -165,19 +179,13 @@ STORY REQUIREMENTS:
 - Avoid random unrelated details.
 - Build curiosity from beginning to end.
 - Keep it fictional.
+- Make this post meaningfully different from the other daily posts.
 
 IMPORTANT:
 The main visual moment must be something concrete that can be shown in a photograph.
-For example:
-a person discovering evidence,
-an abandoned room,
-a mysterious object,
-a hidden compartment,
-a corridor,
-a desk with evidence,
-a CCTV-like scene,
-a strange doorway,
-or another specific moment from the story.
+For example: a person discovering evidence, an abandoned room, a mysterious object,
+a hidden compartment, a corridor, a desk with evidence, a CCTV-like scene,
+a strange doorway, or another specific moment from the story.
 
 Do NOT use headings:
 Question
@@ -212,7 +220,7 @@ finalStory = finalStory
 
 finalStory += "\n\n" + requiredHashtags;
 console.log("Story generated.");
-console.log("Story length:", story.length);
+console.log("Story length:", finalStory.length);
 
 // ========================================
 // 2. GEMINI CREATES VISUAL DIRECTION

@@ -4,9 +4,13 @@ const cfAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
 const fbToken = process.env.FACEBOOK_PAGE_TOKEN;
 const pageId = process.env.FACEBOOK_PAGE_ID;
 
-if (!geminiKey || !cfToken || !cfAccount || !fbToken) {
-  throw new Error("Required GitHub Secret is missing.");
+if (!geminiKey || !cfToken || !cfAccount || !fbToken || !pageId) {
+  throw new Error("Required GitHub Secret or Page ID is missing.");
 }
+
+// ========================================
+// POST SLOT
+// ========================================
 
 function getSlot() {
   const hour = new Date().getUTCHours();
@@ -18,65 +22,22 @@ function getSlot() {
 
 const slot = getSlot();
 
-const prompt = `
-You are creating ONE Facebook post for
-THE UNKNOWN FILES – PROJECT 27, CASE FILE 001.
+console.log("================================");
+console.log("PROJECT 27 AUTO POSTING");
+console.log("Slot:", slot);
+console.log("================================");
 
-This is a fictional mystery series.
-Never present the story as real news, a verified crime, or a real investigation.
+// ========================================
+// GEMINI HELPER
+// ========================================
 
-CURRENT POST SLOT: ${slot}
+async function askGemini(prompt, temperature = 0.8) {
 
-Create ONE fresh cinematic Hindi/Hinglish mystery post.
-
-The post should:
-- Continue the Project 27 storyline.
-- Still be understandable by itself.
-- Feel like a mysterious investigation/evidence discovery.
-- Include ONE hidden clue that readers can solve.
-- Do NOT reveal the answer.
-- Create suspense and curiosity.
-- Use simple Hindi/Hinglish suitable for Facebook readers.
-- Keep it fictional.
-
-Do NOT use headings such as:
-Question, Answer, Solution, Explanation.
-
-Do not write anything before or after the post.
-
-Include:
-- A strong mystery opening.
-- A short cinematic story.
-- One solvable hidden clue.
-- A natural CTA asking readers to comment their theory.
-- 5–8 relevant hashtags.
-
-Must include:
-#TheUnknownFiles
-#Project27
-#CaseFile001
-
-Do not make the post excessively long.
-`;
-
-async function main() {
-
-  console.log("================================");
-  console.log("PROJECT 27 AUTO POSTING");
-  console.log("Slot:", slot);
-  console.log("================================");
-
-  // =========================
-  // 1. GEMINI STORY
-  // =========================
-
-  console.log("Generating mystery story...");
-
-  const geminiURL =
+  const url =
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=" +
     encodeURIComponent(geminiKey);
 
-  const geminiResponse = await fetch(geminiURL, {
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -92,149 +53,276 @@ async function main() {
         }
       ],
       generationConfig: {
-        temperature: 0.9,
-        maxOutputTokens: 1800
+        temperature,
+        maxOutputTokens: 2200
       }
     })
   });
 
-  if (!geminiResponse.ok) {
-    throw new Error(
-      "Gemini API Error: " + await geminiResponse.text()
-    );
+  if (!response.ok) {
+    throw new Error("Gemini API Error: " + await response.text());
   }
 
-  const geminiData = await geminiResponse.json();
+  const data = await response.json();
 
-  const content =
-    geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+  const text =
+    data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-  if (!content) {
-    throw new Error("Gemini returned empty content.");
+  if (!text) {
+    throw new Error("Gemini returned empty response.");
   }
 
-  console.log("Story generated successfully.");
-
-  // =========================
-  // 2. CLOUDFLARE FLUX IMAGE
-  // =========================
-
-  console.log("Generating cinematic image...");
-
-  const imagePrompt = `
-Cinematic photorealistic mystery investigation scene for
-THE UNKNOWN FILES – PROJECT 27.
-
-Dark psychological mystery atmosphere,
-deep shadows, dramatic low-key lighting,
-subtle red accents,
-realistic location,
-realistic evidence,
-cinematic film still,
-high detail,
-photorealistic.
-
-Show the most mysterious or important visual moment
-from the story below.
-
-Match the story closely.
-
-IMPORTANT:
-No readable text.
-No letters.
-No numbers.
-No logos.
-No captions.
-No watermark.
-No poster.
-No collage.
-No borders.
-
-STORY:
-${content.slice(0, 1300)}
-`;
-
-  const cloudflareURL =
-    `https://api.cloudflare.com/client/v4/accounts/${cfAccount}/ai/run/@cf/black-forest-labs/flux-1-schnell`;
-
-  const cfResponse = await fetch(cloudflareURL, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${cfToken}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      prompt: imagePrompt
-    })
-  });
-
-  if (!cfResponse.ok) {
-    throw new Error(
-      "Cloudflare API Error: " + await cfResponse.text()
-    );
-  }
-
-  const cfData = await cfResponse.json();
-
-  const imageBase64 = cfData.result?.image;
-
-  if (!imageBase64) {
-    throw new Error("Cloudflare FLUX returned no image.");
-  }
-
-  console.log("Image generated successfully.");
-
-  // =========================
-  // 3. CONVERT IMAGE
-  // =========================
-
-  const imageBuffer = Buffer.from(imageBase64, "base64");
-
-  // =========================
-  // 4. FACEBOOK POST
-  // =========================
-
-  console.log("Publishing to Facebook...");
-
-  const form = new FormData();
-
-  form.append(
-    "source",
-    new Blob(
-      [imageBuffer],
-      { type: "image/jpeg" }
-    ),
-    "project-27.jpg"
-  );
-
-  form.append("message", content);
-  form.append("published", "true");
-  form.append("access_token", fbToken);
-
-  const facebookResponse = await fetch(
-    `https://graph.facebook.com/v25.0/${pageId}/photos`,
-    {
-      method: "POST",
-      body: form
-    }
-  );
-
-  const facebookText = await facebookResponse.text();
-
-  if (!facebookResponse.ok) {
-    throw new Error(
-      "Facebook API Error: " + facebookText
-    );
-  }
-
-  console.log("================================");
-  console.log("FACEBOOK POST SUCCESS");
-  console.log(facebookText);
-  console.log("================================");
+  return text.trim();
 }
 
-main().catch(error => {
-  console.error("PROJECT 27 FAILED");
-  console.error(error);
-  process.exit(1);
+// ========================================
+// 1. CREATE STORY
+// ========================================
+
+console.log("Generating mystery story...");
+
+const storyPrompt = `
+You are the lead writer for THE UNKNOWN FILES – PROJECT 27, CASE FILE 001.
+
+This is a FICTIONAL cinematic mystery series.
+Never present anything as real news, real crime, or verified investigation.
+
+CURRENT POST SLOT: ${slot}
+
+Create ONE fresh Facebook mystery post in simple Hindi/Hinglish.
+
+STORY REQUIREMENTS:
+
+- Continue the Project 27 storyline.
+- Make the post understandable by itself.
+- Dark cinematic investigation atmosphere.
+- Psychological suspense.
+- A strange location, object, person, event or evidence.
+- Include ONE hidden clue that readers can actually solve.
+- Do NOT reveal the answer.
+- Make the clue visually possible to represent in an image.
+- Avoid complicated mathematics.
+- Avoid random unrelated details.
+- Build curiosity from beginning to end.
+- Keep it fictional.
+
+IMPORTANT:
+The main visual moment must be something concrete that can be shown in a photograph.
+For example:
+a person discovering evidence,
+an abandoned room,
+a mysterious object,
+a hidden compartment,
+a corridor,
+a desk with evidence,
+a CCTV-like scene,
+a strange doorway,
+or another specific moment from the story.
+
+Do NOT use headings:
+Question
+Answer
+Solution
+Explanation
+
+End naturally by asking readers to comment their theory.
+
+Add 5–8 hashtags including:
+#TheUnknownFiles
+#Project27
+#CaseFile001
+
+Do not write anything before or after the post.
+`;
+
+const story = await askGemini(storyPrompt, 0.9);
+
+console.log("Story generated.");
+console.log("Story length:", story.length);
+
+// ========================================
+// 2. GEMINI CREATES VISUAL DIRECTION
+// ========================================
+
+console.log("Creating story-specific visual direction...");
+
+const visualPrompt = `
+You are a professional Hollywood mystery-film cinematographer.
+
+Read the fictional Facebook story below.
+
+Your job is to convert the story into ONE extremely specific visual scene for an AI image generator.
+
+The image MUST show an actual moment from the story, NOT a generic mystery image.
+
+Identify the most important cinematic moment and describe:
+
+1. EXACT LOCATION
+2. TIME OF DAY
+3. MAIN PERSON/CHARACTER
+4. CLOTHING AND APPEARANCE
+5. EXACT ACTION THEY ARE DOING
+6. IMPORTANT OBJECTS/EVIDENCE
+7. WHERE EACH OBJECT IS LOCATED
+8. CAMERA POSITION
+9. CAMERA ANGLE
+10. COMPOSITION
+11. LIGHTING
+12. MOOD
+13. ENVIRONMENT DETAILS
+14. DEPTH / BACKGROUND
+15. VISUAL DETAILS THAT CONNECT DIRECTLY TO THE STORY
+
+The scene should feel like a frame taken directly from a serious psychological mystery film.
+
+CRITICAL:
+Do not invent a completely different scene.
+Use the actual events, objects and location from the story.
+If the story contains a person discovering something, show that discovery.
+If the story contains an object, make that object clearly visible.
+If the story contains a room or location, reproduce that environment.
+
+Do NOT create readable text, letters, numbers, logos or captions inside the image.
+
+Return ONLY the visual scene description.
+Do not explain your reasoning.
+
+STORY:
+${story}
+`;
+
+const visualDirection = await askGemini(visualPrompt, 0.5);
+
+console.log("Visual direction generated.");
+console.log("Visual direction length:", visualDirection.length);
+
+// ========================================
+// 3. FLUX IMAGE
+// ========================================
+
+console.log("Generating story-matched FLUX image...");
+
+const imagePrompt = `
+Photorealistic cinematic film still from a dark psychological mystery thriller.
+
+THE UNKNOWN FILES – PROJECT 27.
+
+IMPORTANT:
+The image must visually reproduce the exact scene described below.
+
+SCENE:
+${visualDirection}
+
+VISUAL QUALITY:
+realistic human proportions,
+natural skin and clothing,
+realistic architecture,
+realistic physical objects,
+cinematic composition,
+dramatic low-key lighting,
+deep shadows,
+subtle cold blue-green atmosphere,
+subtle red accent lighting only where appropriate,
+realistic depth,
+professional movie cinematography,
+35mm film look,
+high detail,
+photorealistic,
+suspenseful atmosphere.
+
+STORY CONNECTION:
+Every major visible element must come from the described scene.
+Do not replace the location, character action or important evidence with generic mystery imagery.
+
+NO:
+readable text,
+letters,
+numbers,
+logos,
+captions,
+watermarks,
+poster design,
+collage,
+split screen,
+borders,
+graphic design,
+random text,
+generic detective scene.
+
+Create ONE single realistic cinematic scene.
+`;
+
+const cfURL =
+  `https://api.cloudflare.com/client/v4/accounts/${cfAccount}/ai/run/@cf/black-forest-labs/flux-1-schnell`;
+
+const cfResponse = await fetch(cfURL, {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${cfToken}`,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    prompt: imagePrompt.slice(0, 2000)
+  })
 });
+
+if (!cfResponse.ok) {
+  throw new Error(
+    "Cloudflare API Error: " + await cfResponse.text()
+  );
+}
+
+const cfData = await cfResponse.json();
+
+const imageBase64 = cfData.result?.image;
+
+if (!imageBase64) {
+  throw new Error("FLUX returned no image.");
+}
+
+console.log("FLUX image generated.");
+
+// ========================================
+// 4. FACEBOOK POST
+// ========================================
+
+console.log("Publishing to Facebook...");
+
+const imageBuffer = Buffer.from(imageBase64, "base64");
+
+const form = new FormData();
+
+form.append(
+  "source",
+  new Blob(
+    [imageBuffer],
+    { type: "image/jpeg" }
+  ),
+  "project-27.jpg"
+);
+
+form.append("message", story);
+form.append("published", "true");
+form.append("access_token", fbToken);
+
+const facebookResponse = await fetch(
+  `https://graph.facebook.com/v25.0/${pageId}/photos`,
+  {
+    method: "POST",
+    body: form
+  }
+);
+
+const facebookText = await facebookResponse.text();
+
+if (!facebookResponse.ok) {
+  throw new Error(
+    "Facebook API Error: " + facebookText
+  );
+}
+
+console.log("================================");
+console.log("FACEBOOK POST SUCCESS");
+console.log(facebookText);
+console.log("================================");
+console.log("PROJECT 27 COMPLETE");

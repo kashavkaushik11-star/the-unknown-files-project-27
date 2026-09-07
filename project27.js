@@ -37,44 +37,104 @@ async function askGemini(prompt, temperature = 0.8) {
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=" +
     encodeURIComponent(geminiKey);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
+  const maxAttempts = 4;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+
+    console.log(`Gemini attempt ${attempt}/${maxAttempts}...`);
+
+    try {
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
             {
-              text: prompt
+              parts: [
+                {
+                  text: prompt
+                }
+              ]
             }
-          ]
+          ],
+          generationConfig: {
+            temperature,
+            maxOutputTokens: 2200
+          }
+        })
+      });
+
+      const responseText = await response.text();
+
+      if (response.ok) {
+
+        const data = JSON.parse(responseText);
+
+        const text =
+          data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (text) {
+          console.log("Gemini response received.");
+          return text.trim();
         }
-      ],
-      generationConfig: {
-        temperature,
-        maxOutputTokens: 2200
+
+        throw new Error("Gemini returned empty content.");
       }
-    })
-  });
 
-  if (!response.ok) {
-    throw new Error("Gemini API Error: " + await response.text());
+      // Retry only temporary/server/rate-limit errors
+      if (
+        response.status === 429 ||
+        response.status === 500 ||
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504
+      ) {
+
+        console.log(
+          `Gemini temporary error ${response.status}. Retrying...`
+        );
+
+        if (attempt < maxAttempts) {
+          const waitTime = attempt * 5000;
+          console.log(`Waiting ${waitTime / 1000} seconds...`);
+
+          await new Promise(resolve =>
+            setTimeout(resolve, waitTime)
+          );
+
+          continue;
+        }
+      }
+
+      throw new Error(
+        `Gemini API Error ${response.status}: ${responseText}`
+      );
+
+    } catch (error) {
+
+      console.log("Gemini request failed:", error.message);
+
+      if (attempt === maxAttempts) {
+        throw error;
+      }
+
+      const waitTime = attempt * 5000;
+
+      console.log(
+        `Retrying after ${waitTime / 1000} seconds...`
+      );
+
+      await new Promise(resolve =>
+        setTimeout(resolve, waitTime)
+      );
+    }
   }
 
-  const data = await response.json();
-
-  const text =
-    data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!text) {
-    throw new Error("Gemini returned empty response.");
-  }
-
-  return text.trim();
+  throw new Error("Gemini failed after all retry attempts.");
 }
-
 // ========================================
 // 1. CREATE STORY
 // ========================================

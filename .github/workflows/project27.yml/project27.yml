@@ -3,169 +3,22 @@ name: Project 27 Auto Posting
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 5 * * *"
-    - cron: "0 8 * * *"
-    - cron: "0 11 * * *"
+    - cron: '0 5 * * *'
+    - cron: '0 8 * * *'
+    - cron: '0 11 * * *'
 
 jobs:
   post:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Run Project 27
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
-          FACEBOOK_PAGE_ID: "1201488423057804"
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-
-          const geminiKey = process.env.GEMINI_API_KEY;
-          const cfToken = process.env.CLOUDFLARE_API_TOKEN;
-          const cfAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
-          const fbToken = process.env.FACEBOOK_PAGE_TOKEN;
-          const pageId = process.env.FACEBOOK_PAGE_ID;
-
-          const now = new Date();
-          const istHour = (now.getUTCHours() + 5 + (now.getUTCMinutes() >= 30 ? 1 : 0)) % 24;
-
-          let slot = "evening";
-          if (istHour >= 9 && istHour < 12) slot = "morning";
-          else if (istHour >= 12 && istHour < 15) slot = "afternoon";
-
-          const prompt = `
-          You are creating one Facebook post for THE UNKNOWN FILES – PROJECT 27, CASE FILE 001.
-
-          This is a fictional mystery series. Never present the story as real news or a verified crime.
-
-          CURRENT POST SLOT: ${slot}
-
-          Create ONE fresh Hindi/Hinglish cinematic mystery post.
-          Continue the Project 27 storyline but make this post understandable by itself.
-          Include one hidden clue that readers can solve.
-          Do not reveal the answer.
-
-          Do NOT use headings such as Question, Answer, Solution or Explanation.
-          Do not add anything before or after the post.
-
-          Style:
-          dark cinematic investigation, unexplained evidence, psychological suspense,
-          hidden clues, secret messages, numbers/codes when useful.
-
-          End with a natural CTA asking readers to comment their theory.
-          Add 5–8 relevant hashtags including:
-          #TheUnknownFiles #Project27 #CaseFile001
-
-          Clearly keep it fictional.
-          `;
-
-          async function main() {
-            console.log("Generating Gemini story...");
-
-            const geminiURL =
-              "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=" +
-              encodeURIComponent(geminiKey);
-
-            const g = await fetch(geminiURL, {
-              method: "POST",
-              headers: {"Content-Type": "application/json"},
-              body: JSON.stringify({
-                contents: [{parts: [{text: prompt}]}],
-                generationConfig: {
-                  temperature: 0.9,
-                  maxOutputTokens: 1800
-                }
-              })
-            });
-
-            if (!g.ok) throw new Error("Gemini error: " + await g.text());
-
-            const gd = await g.json();
-            const content = gd.candidates?.[0]?.content?.parts?.[0]?.text;
-
-            if (!content) throw new Error("Gemini returned no content");
-
-            console.log("Story generated.");
-
-            const imagePrompt = `
-          Cinematic photorealistic mystery investigation scene for THE UNKNOWN FILES – PROJECT 27.
-
-          Dark crime-thriller atmosphere, deep shadows, dramatic low-key lighting,
-          subtle red accents, realistic locations and evidence, psychological suspense,
-          cinematic composition, high detail, photorealistic.
-
-          Show the most mysterious or important visual moment from the story.
-          Match the story closely.
-
-          No readable text, no letters, no numbers, no logos, no captions,
-          no watermark, no poster, no collage, no borders.
-
-          STORY:
-          ${content.slice(0, 1300)}
-          `;
-
-            console.log("Generating FLUX image...");
-
-            const cfURL =
-              `https://api.cloudflare.com/client/v4/accounts/${cfAccount}/ai/run/@cf/black-forest-labs/flux-1-schnell`;
-
-            const c = await fetch(cfURL, {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${cfToken}`,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                prompt: imagePrompt
-              })
-            });
-
-            if (!c.ok) throw new Error("Cloudflare error: " + await c.text());
-
-            const cd = await c.json();
-            const imageBase64 = cd.result?.image;
-
-            if (!imageBase64) throw new Error("FLUX returned no image");
-
-            console.log("Image generated.");
-
-            const imageBuffer = Buffer.from(imageBase64, "base64");
-
-            const form = new FormData();
-            form.append(
-              "source",
-              new Blob([imageBuffer], {type: "image/jpeg"}),
-              "project-27.jpg"
-            );
-            form.append("message", content);
-            form.append("published", "true");
-            form.append("access_token", fbToken);
-
-            console.log("Publishing to Facebook...");
-
-            const fb = await fetch(
-              `https://graph.facebook.com/v25.0/${pageId}/photos`,
-              {
-                method: "POST",
-                body: form
-              }
-            );
-
-            const fbText = await fb.text();
-
-            if (!fb.ok) {
-              throw new Error("Facebook error: " + fbText);
-            }
-
-            console.log("FACEBOOK POST SUCCESS");
-            console.log(fbText);
-          }
-
-          main().catch(err => {
-            console.error(err);
-            process.exit(1);
-          });
-          NODE
+          FACEBOOK_PAGE_ID: '1201488423057804'
+        run: node project27.js

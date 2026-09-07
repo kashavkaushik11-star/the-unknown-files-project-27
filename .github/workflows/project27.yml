@@ -3,9 +3,10 @@ name: Project 27 Auto Posting
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 5 * * *'
-    - cron: '0 8 * * *'
-    - cron: '0 11 * * *'
+    - cron: '45 6 * * *'
+    - cron: '15 9 * * *'
+    - cron: '45 11 * * *'
+    - cron: '15 14 * * *'
 
 jobs:
   post:
